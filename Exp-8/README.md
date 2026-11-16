@@ -1,70 +1,70 @@
-# Experiment 8: MITRE ATT&CK Mapping
+# Experiment 8 : FTP Backdoor Assessment and ATT&CK Context
 
 ## Aim
 
-To document an authorized security-lab exercise and review the MITRE ATT&CK Enterprise framework as a way to describe observed behavior.
+Validate the isolated lab's exposure to the vsftpd 2.3.4 backdoor, document the access obtained, and relate the observed behavior to MITRE ATT&CK without overstating what the evidence proves.
 
-## Requirements and scope
+## Lab environment
 
-- Kali Linux with Metasploit Framework
-- An isolated lab host on a private lab network
-- A web browser with access to MITRE ATT&CK and ATT&CK Navigator
+| Component | Observed value |
+|---|---|
+| Attacking system | Kali Linux, `eth0` — `192.168.1.101` |
+| Target | Metasploitable 2 — `192.168.1.100` |
+| Connectivity | Four ICMP replies; no packet loss |
+| Service under review | FTP on TCP/21, identified as `vsftpd 2.3.4` |
 
-The practical activity was limited to an authorized private lab host. Do not test systems without explicit permission. This report summarizes the recorded result and the ATT&CK technique review; it is not an exploitation guide.
+## Procedure and evidence
 
-## Theory
+### 1. Confirm the lab link
 
-MITRE ATT&CK is a knowledge base for describing adversary behavior. A **tactic** represents an objective, while a **technique** describes a method that may be used to achieve it. The Enterprise matrix groups techniques under tactics, and ATT&CK Navigator provides a visual interface for exploring and selecting them.
+The Kali interface listing shows `eth0` at `192.168.1.101`. A ping to `192.168.1.100` returned four replies, establishing basic reachability before service testing.
 
-Two technique descriptions were reviewed during this experiment:
+![Kali interface address and successful ping](01-network-and-ping.png)
 
-- [T1190: Exploit Public-Facing Application](https://attack.mitre.org/techniques/T1190/) is an Initial Access technique describing exploitation of a weakness in an Internet-facing host or system.
-- [T1068: Exploitation for Privilege Escalation](https://attack.mitre.org/techniques/T1068/) is a Privilege Escalation technique describing exploitation of a software vulnerability to gain higher privileges.
+### 2. Enumerate the target service
 
-These descriptions provide context for analysis, but a technique should only be reported as a match when the evidence supports its defining behavior. A private lab address alone does not show that a service is public-facing, and a root-privileged session alone does not establish how those privileges were obtained.
+An Nmap service/version scan identified FTP on port 21 as `vsftpd 2.3.4`. The scan also reported other exposed services; this experiment focused on FTP.
 
-## Procedure
+![Nmap service and version results](02-nmap-services.png)
 
-### Step 1: Record the lab result
+### 3. Configure the matching Metasploit module
 
-Perform the practical exercise only in the authorized, isolated lab and record the observed outcome. The screenshot shows Metasploit reporting a shell with UID 0 on a private lab host.
+The selected module was `exploit/unix/ftp/vsftpd_234_backdoor`. Its target settings were `RHOSTS 192.168.1.100` and `RPORT 21`.
 
-![Kali Linux lab result showing a root-privileged shell](Screenshots/Step1.png)
+![Metasploit module options and target settings](04-module-options.png)
 
-### Step 2: Review the ATT&CK framework
+![Metasploit console used for the experiment](03-metasploit-start.png)
 
-Open the MITRE ATT&CK website and review the Enterprise matrix as the reference framework for classifying observed behavior.
+### 4. Observe the session and identify the host
 
-![MITRE ATT&CK website and Enterprise matrix](Screenshots/Step2.png)
+Metasploit reported that the backdoor was spawned and opened a Meterpreter session from `192.168.1.101:4444` to `192.168.1.100:48517`. `ls` displayed a directory listing. The attempted `whoami` command returned “Unknown command” at the Meterpreter prompt, so this run does not establish a username or privilege level.
 
-### Step 3: Open ATT&CK Navigator
+`sysinfo` identified `metasploitable.localdomain`, Ubuntu 8.04, Linux `2.6.24-16-server`, architecture `i686`, and Meterpreter `x86/linux`.
 
-Open ATT&CK Navigator and locate the option to create or open an Enterprise ATT&CK layer.
+![Session result, failed whoami command, and successful listing](05-session-and-directory-listing.png)
 
-![ATT&CK Navigator start page](Screenshots/Step3.png)
+![Meterpreter sysinfo output](06-sysinfo.png)
 
-### Step 4: Select a technique in the matrix
+## ATT&CK interpretation
 
-View the Enterprise matrix in Navigator and select T1190 for review. A selection identifies a technique to examine; it does not by itself confirm that the lab activity matches it.
+The Enterprise ATT&CK matrix is included as a framework overview. The T1190 page describes **Exploit Public-Facing Application** under **Initial Access**. That is a useful conceptual comparison for exploitation of a network service, but this was an intentionally vulnerable host on a private lab network; the evidence does not show an Internet-facing application. Treat T1190 as an analytical reference, not a definitive classification of this exact lab scenario. [MITRE ATT&CK T1190](https://attack.mitre.org/techniques/T1190/)
 
-![Enterprise ATT&CK matrix in Navigator with T1190 selected](Screenshots/Step4.png)
+![MITRE ATT&CK Enterprise matrix](07-attack-matrix.png)
 
-### Step 5: Review T1190
+![T1190 page: Exploit Public-Facing Application](08-t1190.png)
 
-Read the official T1190 description and note its association with Initial Access. Compare its criteria with the lab evidence before classifying the activity.
+The additional tactic reference is **Defense Impairment (TA0112)**. Its page lists **T1686, Disable or Modify System Firewall**, and **T1685, Disable or Modify Tools**. Neither action was performed or observed in this FTP exercise; these are defensive-framework examples, not findings from the session. [MITRE ATT&CK Defense Impairment](https://attack.mitre.org/tactics/TA0112/)
 
-![MITRE ATT&CK technique page for T1190](Screenshots/Step5.png)
+![Defense Impairment tactic and examples T1686 and T1685](09-defense-impairment.png)
 
-### Step 6: Review T1068
+## Mitigations
 
-Read the official T1068 description and note its association with Privilege Escalation. Treat it as a possible classification only if evidence shows that privileges were elevated from a lower-privileged state.
+- Upgrade or replace the vulnerable vsftpd 2.3.4 service; remove the backdoored build from systems.
+- Disable FTP where it is unnecessary. Where file transfer is required, prefer a securely configured alternative such as SFTP.
+- Restrict TCP/21 to approved hosts and networks with host and network firewall rules.
+- Monitor FTP connections, authentication activity, unexpected outbound connections, and service changes; alert on anomalous behavior.
+- Keep the operating system and exposed services supported and patched, and verify the service version after remediation.
 
-![MITRE ATT&CK technique page for T1068](Screenshots/Step6.png)
+## Result and conclusion
 
-## Result
-
-The lab screenshot records a Metasploit session reporting UID 0 on a private host. The Enterprise matrix was reviewed in ATT&CK Navigator, T1190 was selected for review, and the official descriptions of T1190 and T1068 were examined. The screenshots do not establish that the host was Internet-facing or that the session resulted from privilege escalation, so neither technique is claimed as a confirmed match.
-
-## Conclusion
-
-This experiment documented a practical lab result and reviewed relevant MITRE ATT&CK techniques. ATT&CK Navigator helps organize and communicate a mapping, but conclusions should remain within the authorized lab scope and be limited to what the evidence demonstrates.
+The lab confirmed connectivity, identified `vsftpd 2.3.4` on TCP/21, and successfully opened a Meterpreter session using the matching Metasploit backdoor module. The session provided a directory listing and target system details. The captured evidence does not verify the session's user identity or privilege level. The ATT&CK pages support contextual analysis, while the Defense Impairment examples were not actions in this run.
